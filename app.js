@@ -10,6 +10,7 @@ require("./db");
 const express = require("express");
 
 const app = express();
+const { isAuthenticated } = require("./middleware/jwt.middleware");
 
 // ℹ️ This function is getting exported from the config folder. It runs most pieces of middleware
 require("./config")(app);
@@ -17,8 +18,13 @@ require("./config")(app);
 // 👇 Start handling routes here
 // Contrary to the views version, all routes are controlled from the routes/index.js
 const allRoutes = require("./routes/index.routes");
+const authRoutes = require("./routes/auth.routes");
+const productRoutes = require("./routes/product.routes");
+const userRoutes = require("./routes/user.routes");
 app.use("/api", allRoutes);
-
+app.use("/api", authRoutes);
+app.use("/api", productRoutes);
+app.use("/api", isAuthenticated, userRoutes);
 // ❗ To handle errors. Routes that don't exist or errors that you handle in specific routes
 require("./error-handling")(app);
 

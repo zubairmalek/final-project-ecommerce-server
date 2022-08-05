@@ -3,6 +3,7 @@ const router = require("express").Router();
 // ℹ️ Handles password encryption
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken");
 
 // How many rounds should bcrypt run the salt (default [10 - 12 rounds])
 const saltRounds = 10;
@@ -11,15 +12,10 @@ const saltRounds = 10;
 const User = require("../models/User.model");
 
 // Require necessary (isLoggedOut and isLiggedIn) middleware in order to control access to specific routes
-const isLoggedOut = require("../middleware/isLoggedOut");
-const isLoggedIn = require("../middleware/isLoggedIn");
+const { isAuthenticated } = require("../middleware/jwt.middleware");
 
-router.get("/loggedin", (req, res) => {
-  res.json(req.user);
-});
-
-router.post("/signup", isLoggedOut, (req, res) => {
-  const { username, password } = req.body;
+router.post("/signup", (req, res) => {
+  const { username, password, email } = req.body;
 
   if (!username) {
     return res
@@ -46,10 +42,10 @@ router.post("/signup", isLoggedOut, (req, res) => {
   */
 
   // Search the database for a user with the username submitted in the form
-  User.findOne({ username }).then((found) => {
+  User.findOne({ email }).then((found) => {
     // If the user is found, send the message username is taken
     if (found) {
-      return res.status(400).json({ errorMessage: "Username already taken." });
+      return res.status(400).json({ errorMessage: "Email is already taken." });
     }
 
     // if user is not found, create a new user - start with hashing the password
@@ -61,11 +57,12 @@ router.post("/signup", isLoggedOut, (req, res) => {
         return User.create({
           username,
           password: hashedPassword,
+          email,
         });
       })
       .then((user) => {
         // Bind the user to the session object
-        req.session.user = user;
+
         res.status(201).json(user);
       })
       .catch((error) => {
@@ -75,7 +72,7 @@ router.post("/signup", isLoggedOut, (req, res) => {
         if (error.code === 11000) {
           return res.status(400).json({
             errorMessage:
-              "Username need to be unique. The username you chose is already in use.",
+              "Email need to be unique. The email you chose is already in use.",
           });
         }
         return res.status(500).json({ errorMessage: error.message });
@@ -83,13 +80,11 @@ router.post("/signup", isLoggedOut, (req, res) => {
   });
 });
 
-router.post("/login", isLoggedOut, (req, res, next) => {
-  const { username, password } = req.body;
+router.post("/login", (req, res, next) => {
+  const { password, email } = req.body;
 
-  if (!username) {
-    return res
-      .status(400)
-      .json({ errorMessage: "Please provide your username." });
+  if (!email) {
+    return res.status(400).json({ errorMessage: "Please provide your email." });
   }
 
   // Here we use the same logic as above
@@ -101,7 +96,7 @@ router.post("/login", isLoggedOut, (req, res, next) => {
   }
 
   // Search the database for a user with the username submitted in the form
-  User.findOne({ username })
+  User.findOne({ email })
     .then((user) => {
       // If the user isn't found, send the message that user provided wrong credentials
       if (!user) {
@@ -113,9 +108,22 @@ router.post("/login", isLoggedOut, (req, res, next) => {
         if (!isSamePassword) {
           return res.status(400).json({ errorMessage: "Wrong credentials." });
         }
-        req.session.user = user;
-        // req.session.user = user._id; // ! better and safer but in this case we saving the entire user object
-        return res.json(user);
+        //At this point, we have checked that credentials are correct...
+        //
+
+        const { _id, email } = user;
+
+        // Create an object that will be set as the token payload
+        const payload = { _id, email };
+
+        // Create and sign the token
+        const authToken = jwt.sign(payload, process.env.TOKEN_SECRET, {
+          algorithm: "HS256",
+          expiresIn: "6h",
+        });
+
+        // Send the token as the response
+        res.status(200).json({ authToken: authToken });
       });
     })
 
@@ -127,13 +135,10 @@ router.post("/login", isLoggedOut, (req, res, next) => {
     });
 });
 
-router.get("/logout", isLoggedIn, (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).json({ errorMessage: err.message });
-    }
-    res.json({ message: "Done" });
-  });
+router.get("/verify", isAuthenticated, (req, res, next) => {
+  console.log(`req.payload`, req.payload);
+
+  res.json(req.payload);
 });
 
 module.exports = router;

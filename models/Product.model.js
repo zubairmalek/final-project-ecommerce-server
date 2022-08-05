@@ -1,25 +1,19 @@
 const { Schema, model } = require("mongoose");
 
 // TODO: Please make sure you edit the user model to whatever makes sense in this case
-const userSchema = new Schema(
+const productSchema = new Schema(
   {
-    username: {
+    price: {
+      type: Number,
+      required: true,
+    },
+    title: {
       type: String,
       required: true,
     },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    password: {
-      type: String,
-      required: true,
-    },
-    profileImage: {
-      type: String,
-    },
-    design: {
+    description: String,
+
+    image: {
       type: String,
     },
   },
@@ -29,6 +23,6 @@ const userSchema = new Schema(
   }
 );
 
-const User = model("User", userSchema);
+const Product = model("Product", productSchema);
 
-module.exports = User;
+module.exports = Product;
